@@ -1,6 +1,0 @@
-{
- "name": "Home Pi",
- "brand": "Greenisus1 / WinnieGaming",
- "base": "Buildroot Linux (own distro, not a layer on another OS)",
- "extras": {"watchgoose": false, "fetchwing": false}
-}
