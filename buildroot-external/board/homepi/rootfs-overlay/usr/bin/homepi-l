@@ -1,0 +1,3 @@
+#!/bin/sh
+# Home Pi login chain: auth gate (wizard on first boot) then the launcher.
+homepiauth.py && exec homepi
