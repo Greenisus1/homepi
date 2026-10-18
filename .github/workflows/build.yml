@@ -1,0 +1,32 @@
+name: build-homepi-image
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends build-essential git wget cpio unzip rsync bc kmod xz-utils bzip2 file python3 perl libncurses5-dev patch sed bison flex libssl-dev
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
+          df -h /
+      - name: Get Buildroot
+        run: |
+          wget -q https://buildroot.org/downloads/buildroot-2025.08.1.tar.gz
+          tar xf buildroot-2025.08.1.tar.gz
+      - name: Configure
+        run: make -C buildroot-2025.08.1 BR2_EXTERNAL="$GITHUB_WORKSPACE/buildroot-external" homepi_pi5_defconfig
+      - name: Build (kernel + rootfs)
+        run: make -C buildroot-2025.08.1 -j4
+      - name: Compress image
+        run: xz -T4 -9 buildroot-2025.08.1/output/images/sdcard.img
+      - uses: actions/upload-artifact@v4
+        with:
+          name: homepi-sdcard-img
+          path: buildroot-2025.08.1/output/images/sdcard.img.xz
+          retention-days: 14
