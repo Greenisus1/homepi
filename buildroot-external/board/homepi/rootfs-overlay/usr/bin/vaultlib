@@ -1,0 +1,198 @@
+"""Home Pi vault: password-derived encryption for on-device secrets.
+
+Design (the owner's spec):
+- A random 256-bit MASTER KEY encrypts the vault file.
+- The master key is WRAPPED under a key derived from the login password
+  (PBKDF2-HMAC-SHA256). Only the right password unwraps it: the data is
+  only viable when you are logged in.
+- The password hash stored for login is HMAC(kek, 'verify') - a verifier,
+  never the KEK itself, so reading auth.json does not reveal the vault key.
+- Forgot password = GitHub QR with the SAME linked account, then recovery
+  that KEEPS the data (the owner's call): at setup a random RECOVERY SECRET is
+  uploaded to the user's own GitHub (secret gist) and the master key is
+  also wrapped under a key derived from that secret. Recovery fetches the
+  gist, unwraps the master key, sets a new password - old data survives.
+  The gist alone is useless without the device (wrap + vault live on the
+  SD card); the device alone is useless without password or gist.
+  Last resort (gist unreachable/missing): explicit ERASE-and-reset.
+- Vault body: encrypt-then-MAC using an HMAC-SHA256 keystream (counter mode)
+  + HMAC-SHA256 tag, sub-keys derived from the master key. Stdlib-only
+  construction from standard primitives (no third-party crypto package in
+  the Buildroot image). Honest limits in README.
+"""
+import base64, hashlib, hmac, json, os, secrets, time
+
+ITERATIONS = 200_000
+
+
+def _b64(b):
+    return base64.b64encode(b).decode('ascii')
+
+
+def _unb64(s):
+    return base64.b64decode(s.encode('ascii'))
+
+
+def derive_kek(password, salt, iterations=ITERATIONS):
+    return hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, iterations)
+
+
+def verifier_from_kek(kek):
+    return hmac.new(kek, b'homepi-verify-v2', hashlib.sha256).hexdigest()
+
+
+def _stream(key, nonce, n):
+    out = bytearray()
+    counter = 0
+    while len(out) < n:
+        out += hmac.new(key, nonce + counter.to_bytes(8, 'big'),
+                        hashlib.sha256).digest()
+        counter += 1
+    return bytes(out[:n])
+
+
+def wrap_key(master, kek):
+    pad = hmac.new(kek, b'homepi-wrap-pw', hashlib.sha256).digest()
+    ct = bytes(a ^ b for a, b in zip(master, pad))
+    tag = hmac.new(kek, b'homepi-wraptag-pw' + ct, hashlib.sha256).hexdigest()
+    return {'ct': _b64(ct), 'tag': tag}
+
+
+def unwrap_key(wrapped, kek):
+    ct = _unb64(wrapped['ct'])
+    tag = hmac.new(kek, b'homepi-wraptag-pw' + ct, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(tag, wrapped['tag']):
+        return None
+    pad = hmac.new(kek, b'homepi-wrap-pw', hashlib.sha256).digest()
+    return bytes(a ^ b for a, b in zip(ct, pad))
+
+
+def vault_encrypt(master, obj):
+    enc_key = hmac.new(master, b'homepi-vault-enc', hashlib.sha256).digest()
+    mac_key = hmac.new(master, b'homepi-vault-mac', hashlib.sha256).digest()
+    pt = json.dumps(obj).encode('utf-8')
+    nonce = os.urandom(16)
+    ks = _stream(enc_key, nonce, len(pt))
+    ct = bytes(a ^ b for a, b in zip(pt, ks))
+    tag = hmac.new(mac_key, b'vault-v2' + nonce + ct, hashlib.sha256).hexdigest()
+    return {'nonce': _b64(nonce), 'ct': _b64(ct), 'tag': tag}
+
+
+def vault_decrypt(master, blob):
+    enc_key = hmac.new(master, b'homepi-vault-enc', hashlib.sha256).digest()
+    mac_key = hmac.new(master, b'homepi-vault-mac', hashlib.sha256).digest()
+    nonce, ct = _unb64(blob['nonce']), _unb64(blob['ct'])
+    tag = hmac.new(mac_key, b'vault-v2' + nonce + ct, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(tag, blob['tag']):
+        return None
+    ks = _stream(enc_key, nonce, len(ct))
+    pt = bytes(a ^ b for a, b in zip(ct, ks))
+    return json.loads(pt.decode('utf-8'))
+
+
+def vault_path(root='/'):
+    return os.path.join(root, 'etc/homepi/vault.enc')
+
+
+def load_blob(root='/'):
+    try:
+        with open(vault_path(root)) as f:
+            d = json.load(f)
+        if d.get('version') == 2:
+            return d
+    except Exception:
+        pass
+    return None
+
+
+def _save(root, blob):
+    path = vault_path(root)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + '.tmp'
+    with open(tmp, 'w') as f:
+        json.dump(blob, f)
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, path)
+
+
+def create_vault(root, password, salt=None):
+    """New master key wrapped under the password KEK; empty vault.
+    salt: optional caller salt so auth.json and the vault share one
+    derivation (verify + unwrap in a single PBKDF2 run).
+    Returns (master, kek, salt, recovery_secret_b64). The recovery secret
+    is for upload to the user's GitHub (gist) - never kept on the device
+    beyond this return value; the blob only holds its wrap + salt."""
+    master = secrets.token_bytes(32)
+    salt = salt or os.urandom(16)
+    kek = derive_kek(password, salt)
+    recovery_secret = secrets.token_bytes(32)
+    salt_r = os.urandom(16)
+    kek_r = derive_kek(_b64(recovery_secret), salt_r)
+    blob = {
+        'version': 2,
+        'salt_pw': _b64(salt),
+        'wrap_pw': wrap_key(master, kek),
+        'salt_r': _b64(salt_r),
+        'wrap_r': wrap_key(master, kek_r),
+        'vault': vault_encrypt(master, {'secrets': {}, 'created': time.time()}),
+    }
+    _save(root, blob)
+    return master, kek, salt, _b64(recovery_secret)
+
+
+def recovery_payload(recovery_secret_b64):
+    """JSON body uploaded to the user's GitHub gist at setup."""
+    return {'homepi_recovery': {'version': 2, 'secret': recovery_secret_b64}}
+
+
+def secret_from_payload(obj):
+    try:
+        return obj['homepi_recovery']['secret']
+    except Exception:
+        return None
+
+
+def unlock_with_recovery_secret(root, secret_b64):
+    """Returns master or None."""
+    blob = load_blob(root)
+    if not blob or 'wrap_r' not in blob:
+        return None
+    kek_r = derive_kek(secret_b64, _unb64(blob['salt_r']))
+    return unwrap_key(blob['wrap_r'], kek_r)
+
+
+def rewrap_new_password(root, master, new_password, salt=None):
+    """Keep the master key (and all data); re-wrap under a new password KEK.
+    Returns (kek, salt)."""
+    blob = load_blob(root)
+    salt = salt or os.urandom(16)
+    kek = derive_kek(new_password, salt)
+    blob['salt_pw'] = _b64(salt)
+    blob['wrap_pw'] = wrap_key(master, kek)
+    _save(root, blob)
+    return kek, salt
+
+
+def unlock_with_password(root, password):
+    """Returns (master, kek) or (None, None)."""
+    blob = load_blob(root)
+    if not blob:
+        return None, None
+    kek = derive_kek(password, _unb64(blob['salt_pw']))
+    master = unwrap_key(blob['wrap_pw'], kek)
+    return (master, kek) if master else (None, None)
+
+
+def reset_vault(root, master, data=None):
+    """Re-encrypt vault contents with the same master (contents update)."""
+    blob = load_blob(root)
+    blob['vault'] = vault_encrypt(master, data if data is not None
+                                  else {'secrets': {}, 'created': time.time()})
+    _save(root, blob)
+
+
+def wipe_vault(root, new_password, salt=None):
+    """LAST RESORT only (gist unreachable/missing): delete the old
+    password-encrypted data, create a fresh key + empty vault.
+    Returns (master, kek, salt, recovery_secret_b64)."""
+                                    return create_vault(root, new_password, salt=salt)
