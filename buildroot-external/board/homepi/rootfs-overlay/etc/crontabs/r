@@ -1,2 +1,0 @@
-# Home Pi: check for system updates from the repo daily at 04:17.
-17 4 * * * hpupdate --auto >>/var/log/hpupdate.log 2>&1
