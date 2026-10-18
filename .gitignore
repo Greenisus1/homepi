@@ -1,0 +1,4 @@
+kernel/
+buildroot/
+__pycache__/
+*.pyc
