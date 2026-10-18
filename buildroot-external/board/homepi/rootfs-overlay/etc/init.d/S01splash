@@ -1,0 +1,12 @@
+#!/bin/sh
+# Home Pi boot splash: show the WinnieGaming logo + credits on the framebuffer
+# while the system comes up. Silent no-op without a display or fbv.
+case "$1" in
+  start)
+    if command -v fbv >/dev/null 2>&1 && [ -e /dev/fb0 ]; then
+      chvt 1 2>/dev/null || true
+      fbv -d 10 -c /usr/share/homepi/splash.png >/dev/null 2>&1 &
+    fi
+    ;;
+esac
+exit 0
