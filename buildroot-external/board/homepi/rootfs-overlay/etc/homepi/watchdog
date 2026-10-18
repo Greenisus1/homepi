@@ -1,0 +1,4 @@
+# Home Pi reboot-before-freeze watchdog. ENABLED=1/0.
+# If the pinger freezes, the kernel reboots the board (~15s hardware timeout).
+ENABLED=1
+PING_SECONDS=10
