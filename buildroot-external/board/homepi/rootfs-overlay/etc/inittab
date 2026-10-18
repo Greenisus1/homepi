@@ -1,0 +1,7 @@
+# Home Pi inittab (busybox): autologin root on console + tty1; .profile runs the launcher.
+::sysinit:/etc/init.d/rcS
+console::respawn:/bin/login -f root
+tty1::respawn:/bin/login -f root
+::restart:/sbin/init
+::ctrlaltdel:/sbin/reboot
+::shutdown:/bin/umount -a -r
