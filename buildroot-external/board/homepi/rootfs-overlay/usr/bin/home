@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+'''Home Pi launcher: fullscreen terminal home screen.'''
+import curses, os, subprocess, sys, tempfile
+
+import homepilib
+
+VERSION = '1.0.0'
+DEMO = os.environ.get('HOMEPI_DEMO') == '1'
+
+SPECIAL = [('App Store', 'appstore'), ('Backup to GitHub...', 'hpbackup backup'), ('Shell', None),
+           ('Reboot...', 'REBOOT'), ('Power off...', 'POWEROFF')]
+
+
+def entries():
+    if DEMO:
+        return [('Cardcoot', 'echo demo-cardcoot'), ('Fetchwing', 'echo demo-fw'),
+                ('Watchgoose', 'echo demo-wg')] + SPECIAL
+    apps = homepilib.discover_apps(['/root/apps', '/opt/apps', os.path.expanduser('~/apps')],
+                                   '/etc/homepi/apps.json')
+    return apps + SPECIAL
+
+
+def run_command(scr, cmd):
+    curses.endwin()
+    print()
+    try:
+        subprocess.run(cmd, shell=True)
+    except Exception as e:
+        print('error:', e)
+    print('\n[enter] back to Home')
+    try:
+        input()
+    except EOFError:
+        pass
+
+
+def confirm(scr, question):
+    h, w = scr.getmaxyx()
+    msg = question + '  [y/N]'
+    scr.addstr(h - 3, 2, msg[:w - 4], curses.A_BOLD)
+    scr.refresh()
+    return scr.getch() in (ord('y'), ord('Y'))
+
+
+def main_menu(scr):
+    curses.curs_set(0)
+    items = entries()
+    pos = 0
+    while True:
+        scr.erase()
+        h, w = scr.getmaxyx()
+        title = ' H O M E   P I '
+        scr.addstr(1, max(0, (w - len(title)) // 2), title, curses.A_BOLD)
+        scr.addstr(2, max(0, (w - 34) // 2), homepilib.BRAND, curses.A_DIM)
+        credit = 'Made by Greenisus1 - Home Pi is based on Linux'
+        scr.addstr(3, max(0, (w - len(credit)) // 2), credit, curses.A_DIM)
+        y = 5
+        for i, (label, _) in enumerate(items):
+            attr = curses.A_REVERSE if i == pos else curses.A_NORMAL
+            scr.addstr(y + i, max(0, w // 2 - 12), ('  %-20s' % label)[:24], attr)
+        scr.addstr(h - 1, 2, 'arrows move  enter run  q shell')
+        scr.refresh()
+        k = scr.getch()
+        if k in (curses.KEY_UP, ord('k')):
+            pos = (pos - 1) % len(items)
+        elif k in (curses.KEY_DOWN, ord('j')):
+            pos = (pos + 1) % len(items)
+        elif k in (ord('q'), 27):
+            return 0
+        elif k in (curses.KEY_ENTER, 10, 13):
+            label, cmd = items[pos]
+            if cmd == 'REBOOT':
+                if confirm(scr, 'Reboot the Pi now?'):
+                    run_command(scr, 'systemctl reboot')
+            elif cmd == 'POWEROFF':
+                if confirm(scr, 'Power the Pi off now?'):
+                    run_command(scr, 'systemctl poweroff')
+            elif cmd is None:
+                return 0
+            else:
+                run_command(scr, cmd)
+            items = entries()
+
+
+def main():
+    if '--version' in sys.argv:
+        print(VERSION)
+        return 0
+    return curses.wrapper(main_menu)
+
+
+if __name__ == '__main__':
+    sys.exit(main())
