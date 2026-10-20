@@ -1,0 +1,580 @@
+#!/usr/bin/env python3
+"""hpremote - Home Pi remote desktop.
+
+View and control this Pi's console from another machine over the SSH access
+Home Pi already has (dropbear). Nothing new listens on the network: the
+viewer runs inside a normal SSH session, so remote access works wherever
+SSH already reaches the Pi (LAN, or any tunnel you already run) - no router
+or firewall changes.
+
+    on the Pi:   hpremote on        (launcher: "Remote desktop...")
+                 shows a one-time pairing PIN on the Pi's own screen
+    on the Mac:  hpremote pair      (over SSH) type the PIN -> pairing token
+                 hpremote attach TOKEN     view + control the console
+                 hpremote attach TOKEN --watch   view only
+                 Ctrl-Q detaches
+    kill switch: hpremote kill      disconnects every attached viewer now
+                 hpremote off       turns remote desktop off entirely
+
+The console is shared 1:1 - the viewer sees exactly what is on the Pi's
+screen, and keystrokes land exactly as if typed on the Pi's keyboard.
+While a viewer is attached, the Pi shows it (wall notice, `hpremote status`,
+/run/hpremote/ session markers) and every attach/detach is logged to
+/var/log/hpremote.log.
+
+Keystroke injection uses the kernel's uinput virtual keyboard when
+available (enabled in the Home Pi kernel via kernel-uinput.fragment) and
+falls back to TIOCSTI; if neither works the attach runs view-only and
+says so. Env overrides HPREMOTE_STATE_DIR/HPREMOTE_VCSA/HPREMOTE_TTY/
+HPREMOTE_BACKEND/HPREMOTE_RUN_DIR/HPREMOTE_LOG exist for development
+and tests.
+"""
+import fcntl, getpass, hashlib, hmac, json, os, secrets, signal, struct, subprocess, sys, time
+
+VERSION = '1.1.0'
+STATE_DIR = os.environ.get('HPREMOTE_STATE_DIR', '/etc/homepi')
+STATE = os.path.join(STATE_DIR, 'remote.json')
+LOG = os.environ.get('HPREMOTE_LOG', '/var/log/hpremote.log')
+RUN_DIR = os.environ.get('HPREMOTE_RUN_DIR', '/run/hpremote')
+PIN_MINUTES = 10
+MAX_TOKENS = 8
+MAX_PIN_ATTEMPTS = 5
+
+# ncurses key codes (stable values; curses is imported lazily so the tests
+# and non-UI commands never need it).
+KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT = 259, 258, 260, 261
+KEY_HOME, KEY_BACKSPACE, KEY_DC, KEY_END = 262, 263, 330, 360
+KEY_NPAGE, KEY_PPAGE, KEY_ENTER, KEY_RESIZE = 338, 339, 343, 410
+
+# Linux input event keycodes we use.
+K_ESC, K_ENTER, K_BACKSPACE, K_TAB, K_SPACE = 1, 28, 14, 15, 57
+K_LCTRL, K_LSHIFT = 29, 42
+K_HOME, K_UP, K_PGUP, K_LEFT, K_RIGHT, K_END, K_DOWN, K_PGDN, K_DEL = 102, 103, 104, 105, 106, 107, 108, 109, 111
+_KEY_ROWS = ['1234567890', 'qwertyuiop', 'asdfghjkl', 'zxcvbnm']
+_KEY_BASES = [2, 16, 30, 44]
+
+# Special (curses) key -> (linux keycode, terminal escape sequence for TIOCSTI)
+SPECIAL_KEYS = {
+    KEY_UP: (K_UP, '\x1b[A'), KEY_DOWN: (K_DOWN, '\x1b[B'),
+    KEY_LEFT: (K_LEFT, '\x1b[D'), KEY_RIGHT: (K_RIGHT, '\x1b[C'),
+    KEY_HOME: (K_HOME, '\x1b[H'), KEY_END: (K_END, '\x1b[F'),
+    KEY_DC: (K_DEL, '\x1b[3~'), KEY_NPAGE: (K_PGDN, '\x1b[6~'),
+    KEY_PPAGE: (K_PGUP, '\x1b[5~'), KEY_ENTER: (K_ENTER, '\r'),
+    KEY_BACKSPACE: (K_BACKSPACE, '\x7f'),
+}
+
+_PUNCT = {'-': (12, False), '=': (13, False), '[': (26, False), ']': (27, False),
+          '\\': (43, False), ';': (39, False), "'": (40, False), '`': (41, False),
+          ',': (51, False), '.': (52, False), '/': (53, False),
+          '_': (12, True), '+': (13, True), '{': (26, True), '}': (27, True),
+          '|': (43, True), ':': (39, True), '"': (40, True), '~': (41, True),
+          '<': (51, True), '>': (52, True), '?': (53, True),
+          '!': (2, True), '@': (3, True), '#': (4, True), '$': (5, True),
+          '%': (6, True), '^': (7, True), '&': (8, True), '*': (9, True),
+          '(': (10, True), ')': (11, True)}
+
+
+def char_to_key(ch):
+    """Printable char / control char -> (keycode, shift, ctrl) or None."""
+    if ch == ' ':
+        return (K_SPACE, False, False)
+    if ch in '\r\n':
+        return (K_ENTER, False, False)
+    if ch == '\t':
+        return (K_TAB, False, False)
+    if ch == '\x1b':
+        return (K_ESC, False, False)
+    if ch == '\x7f':
+        return (K_BACKSPACE, False, False)
+    if 'a' <= ch <= 'z':
+        for row, base in zip(_KEY_ROWS, _KEY_BASES):
+            if ch in row:
+                return (base + row.index(ch), False, False)
+        return None
+    if 'A' <= ch <= 'Z':
+        low = char_to_key(ch.lower())
+        return (low[0], True, False) if low else None
+    if '1' <= ch <= '9':
+        return (2 + ord(ch) - ord('1'), False, False)
+    if ch == '0':
+        return (11, False, False)
+    if '\x01' <= ch <= '\x1a':  # Ctrl-A .. Ctrl-Z
+        low = char_to_key(chr(ord('a') + ord(ch) - 1))
+        return (low[0], False, True) if low else None
+    p = _PUNCT.get(ch)
+    return (p[0], p[1], False) if p else None
+
+
+def map_key(ch):
+    """curses getch() code -> list of events: ('text', str) or
+    ('key', keycode, shift, ctrl). Empty list if the key is ignored."""
+    if ch in SPECIAL_KEYS:
+        code, seq = SPECIAL_KEYS[ch]
+        return [('key', code, False, False, seq)]
+    if ch == KEY_RESIZE or ch < 0 or ch > 255:
+        return []
+    c = chr(ch)
+    if c == '\x11':   # Ctrl-Q is the detach key; never injected
+        return []
+    k = char_to_key(c)
+    if not k:
+        return []
+    if c in '\x1b\x7f\r\n\t' or ' ' <= c <= '~':
+        return [('key', k[0], k[1], k[2], c if c in '\r\n\t\x1b\x7f' else c)]
+    return [('key', k[0], k[1], k[2], c)]
+
+
+def events_to_bytes(events):
+    """TIOCSTI backend: events -> bytes injected as if typed."""
+    out = []
+    for ev in events:
+        out.append(ev[4].encode('utf-8', 'ignore'))
+    return b''.join(out)
+
+
+# --- uinput virtual keyboard ------------------------------------------------
+
+EV_SYN, EV_KEY = 0x00, 0x01
+UI_SET_EVBIT, UI_SET_KEYBIT = 0x40045564, 0x40045565
+UI_DEV_CREATE, UI_DEV_DESTROY = 0x5501, 0x5502
+_UINPUT_USER_DEV = '<80sHHHHI' + '64i' * 4
+_INPUT_EVENT = 'llHHi'
+
+
+class UinputInjector:
+    """A virtual USB-grade keyboard created through /dev/uinput. Keystrokes
+    land on whatever console has focus, exactly like a real keyboard."""
+
+    def __init__(self, path='/dev/uinput'):
+        self.fd = os.open(path, os.O_WRONLY | os.O_NONBLOCK)
+        codes = {K_LCTRL, K_LSHIFT}
+        for row, base in zip(_KEY_ROWS, _KEY_BASES):
+            codes.update(base + i for i in range(len(row)))
+        codes.update(p[0] for p in _PUNCT.values())
+        codes.update(k for k, _ in SPECIAL_KEYS.values())
+        codes.update([K_ESC, K_ENTER, K_BACKSPACE, K_TAB, K_SPACE, 11])
+        fcntl.ioctl(self.fd, UI_SET_EVBIT, EV_KEY)
+        for c in sorted(codes):
+            fcntl.ioctl(self.fd, UI_SET_KEYBIT, c)
+        dev = struct.pack(_UINPUT_USER_DEV, b'hpremote', 0x06, 0x1, 0x1, 1, 0,
+                          *([0] * 64 * 4))
+        os.write(self.fd, dev)
+        fcntl.ioctl(self.fd, UI_DEV_CREATE)
+        time.sleep(0.3)  # let the kernel register the device
+
+    def _emit(self, etype, code, value):
+        os.write(self.fd, struct.pack(_INPUT_EVENT, 0, 0, etype, code, value))
+
+    def _press(self, code, shift=False, ctrl=False):
+        if ctrl:
+            self._emit(EV_KEY, K_LCTRL, 1)
+        if shift:
+            self._emit(EV_KEY, K_LSHIFT, 1)
+        self._emit(EV_KEY, code, 1)
+        self._emit(EV_SYN, 0, 0)
+        self._emit(EV_KEY, code, 0)
+        if shift:
+            self._emit(EV_KEY, K_LSHIFT, 0)
+        if ctrl:
+            self._emit(EV_KEY, K_LCTRL, 0)
+        self._emit(EV_SYN, 0, 0)
+
+    def inject(self, events):
+        for ev in events:
+            self._press(ev[1], ev[2], ev[3])
+
+    def close(self):
+        try:
+            fcntl.ioctl(self.fd, UI_DEV_DESTROY)
+        except OSError:
+            pass
+        os.close(self.fd)
+
+
+class TiocstiInjector:
+    """Fallback: insert bytes into the console tty's input queue (needs the
+    kernel's legacy TIOCSTI, off by default on Linux 6.2+)."""
+
+    def __init__(self, tty_path):
+        self.fd = os.open(tty_path, os.O_RDWR | os.O_NOCTTY)
+
+    def inject(self, events):
+        for b in events_to_bytes(events):
+            fcntl.ioctl(self.fd, 0x5412, bytes([b]))  # termios.TIOCSTI
+
+    def close(self):
+        os.close(self.fd)
+
+
+# --- console screen ---------------------------------------------------------
+
+
+def active_console():
+    try:
+        with open('/sys/class/tty/tty0/active') as f:
+            name = f.read().strip()          # e.g. "tty1"
+        return int(name[3:]) if name.startswith('tty') else 1
+    except (OSError, ValueError):
+        return 1
+
+
+def vcsa_path():
+    return os.environ.get('HPREMOTE_VCSA') or '/dev/vcsa%d' % active_console()
+
+
+def tty_path():
+    return os.environ.get('HPREMOTE_TTY') or '/dev/tty%d' % active_console()
+
+
+def parse_vcsa(data):
+    """Raw /dev/vcsaN bytes -> (rows, cols, (cx, cy), [line strings])."""
+    if len(data) < 4:
+        return (0, 0, (0, 0), [])
+    rows, cols, cx, cy = data[0], data[1], data[2], data[3]
+    cells = data[4:4 + rows * cols * 2]
+    lines = []
+    for r in range(rows):
+        row = cells[r * cols * 2:(r + 1) * cols * 2]
+        lines.append(''.join(chr(row[i]) if 32 <= row[i] < 127 else ' '
+                             for i in range(0, len(row) - 1, 2)).rstrip())
+    return (rows, cols, (cx, cy), lines)
+
+
+def read_console():
+    try:
+        with open(vcsa_path(), 'rb') as f:
+            return f.read()
+    except OSError:
+        return None
+
+
+# --- state, PIN pairing, sessions -------------------------------------------
+
+
+def load_state():
+    try:
+        with open(STATE) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {'enabled': False, 'tokens': []}
+
+
+def save_state(st):
+    os.makedirs(STATE_DIR, exist_ok=True)
+    tmp = STATE + '.tmp'
+    with open(tmp, 'w') as f:
+        json.dump(st, f, indent=1)
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, STATE)
+
+
+def _hash(secret, salt):
+    return hashlib.sha256((salt + ':' + secret).encode()).hexdigest()
+
+
+def log(msg):
+    try:
+        with open(LOG, 'a') as f:
+            f.write('%s %s\n' % (time.strftime('%Y-%m-%dT%H:%M:%S'), msg))
+    except OSError:
+        pass
+
+
+def wall(msg):
+    try:
+        subprocess.run(['wall', msg], timeout=5, check=False,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def cmd_on():
+    st = load_state()
+    st['enabled'] = True
+    pin = '%06d' % secrets.randbelow(1000000)
+    st['pin_salt'] = secrets.token_hex(8)
+    st['pin_hash'] = _hash(pin, st['pin_salt'])
+    st['pin_expires'] = time.time() + PIN_MINUTES * 60
+    st['pin_attempts'] = 0
+    save_state(st)
+    log('remote desktop enabled')
+    print('Remote desktop is ON.')
+    print()
+    print('  Pairing PIN:  %s' % pin)
+    print()
+    print('One-time PIN, valid for %d minutes. On the viewer machine run:' % PIN_MINUTES)
+    print('  ssh %s hpremote pair' % os.uname().nodename)
+    print('and type this PIN when asked. Then attach with the token it gives.')
+    print('Turn off with:  hpremote off')
+    return 0
+
+
+def cmd_pair():
+    st = load_state()
+    if not st.get('enabled'):
+        print('Remote desktop is off. Run "hpremote on" on the Pi first.')
+        return 1
+    if not st.get('pin_hash') or time.time() > st.get('pin_expires', 0):
+        print('No active pairing PIN. Run "hpremote on" on the Pi again.')
+        return 1
+    if st.get('pin_attempts', 0) >= MAX_PIN_ATTEMPTS:
+        print('Too many wrong PINs. Run "hpremote on" on the Pi for a new one.')
+        return 1
+    pin = getpass.getpass('Pairing PIN shown on the Pi screen: ')
+    if not hmac.compare_digest(_hash(pin.strip(), st['pin_salt']), st['pin_hash']):
+        st['pin_attempts'] = st.get('pin_attempts', 0) + 1
+        save_state(st)
+        log('pairing failed (wrong PIN, attempt %d)' % st['pin_attempts'])
+        print('Wrong PIN.')
+        return 1
+    token = secrets.token_hex(16)
+    st.setdefault('tokens', []).append(_hash(token, st['pin_salt']))
+    st['tokens'] = st['tokens'][-MAX_TOKENS:]
+    st['pin_hash'] = None  # one-time
+    save_state(st)
+    log('viewer paired (%d paired)' % len(st['tokens']))
+    print('Paired. Save this token on the viewer machine (shown once):')
+    print()
+    print('TOKEN=%s' % token)
+    print()
+    print('Attach with:  ssh %s hpremote attach %s' % (os.uname().nodename, token))
+    print('Add --watch for view-only. Ctrl-Q detaches.')
+    return 0
+
+
+def token_ok(st, token):
+    salt = st.get('pin_salt', '')
+    want = _hash(token, salt)
+    return any(hmac.compare_digest(want, t) for t in st.get('tokens', []))
+
+
+def session_file(pid):
+    return os.path.join(RUN_DIR, '%d.json' % pid)
+
+
+def sessions():
+    out = []
+    try:
+        for fn in os.listdir(RUN_DIR):
+            try:
+                with open(os.path.join(RUN_DIR, fn)) as f:
+                    out.append(json.load(f))
+            except (OSError, ValueError):
+                pass
+    except OSError:
+        pass
+    return out
+
+
+def kill_sessions():
+    killed = []
+    for s in sessions():
+        pid = s.get('pid')
+        try:
+            os.kill(pid, signal.SIGTERM)
+            killed.append(pid)
+        except (OSError, TypeError):
+            pass
+        try:
+            os.remove(session_file(pid))
+        except (OSError, TypeError):
+            pass
+    return killed
+
+
+def cmd_status():
+    st = load_state()
+    live = sessions()
+    print('Remote desktop: %s' % ('ON' if st.get('enabled') else 'OFF'))
+    print('Paired viewers: %d' % len(st.get('tokens', [])))
+    if live:
+        print('Attached now:  %d' % len(live))
+        for s in live:
+            print('  pid %s since %s from %s%s' % (
+                s.get('pid'), s.get('since', '?'), s.get('peer', '?'),
+                ' (watch only)' if s.get('watch') else ''))
+    else:
+        print('Attached now:  nobody')
+    return 0
+
+
+def cmd_off():
+    st = load_state()
+    st['enabled'] = False
+    st['pin_hash'] = None
+    save_state(st)
+    killed = kill_sessions()
+    log('remote desktop disabled (%d viewer(s) disconnected)' % len(killed))
+    print('Remote desktop is OFF. Disconnected %d viewer(s).' % len(killed))
+    return 0
+
+
+def cmd_kill():
+    killed = kill_sessions()
+    log('kill switch: disconnected %d viewer(s)' % len(killed))
+    wall('hpremote: a remote viewer was disconnected (kill switch)')
+    print('Disconnected %d viewer(s).' % len(killed))
+    return 0
+
+
+# --- attach viewer ----------------------------------------------------------
+
+
+def open_injector(watch):
+    backend = os.environ.get('HPREMOTE_BACKEND', 'auto')
+    if watch or backend == 'none':
+        return None, 'watch-only'
+    if backend in ('auto', 'uinput'):
+        try:
+            return UinputInjector(), 'uinput'
+        except OSError:
+            if backend == 'uinput':
+                raise
+    if backend in ('auto', 'tiocsti'):
+        try:
+            return TiocstiInjector(tty_path()), 'tiocsti'
+        except OSError:
+            pass
+    return None, 'watch-only'
+
+
+def run_viewer(watch):
+    import curses
+    inj, backend = open_injector(watch)
+    console = 'tty%d' % active_console()
+
+    def _main(scr):
+        try:
+            curses.curs_set(0)
+        except curses.error:
+            pass
+        curses.raw()  # deliver Ctrl-Q/Ctrl-] (cbreak leaves IXON flow control on)
+        scr.timeout(250)
+        last = None
+        while True:
+            data = read_console()
+            if data is not None and data != last:
+                rows, cols, (cx, cy), lines = parse_vcsa(data)
+                maxy, maxx = scr.getmaxyx()
+                scr.erase()
+                for y, line in enumerate(lines[:maxy - 1]):
+                    try:
+                        attr = curses.A_REVERSE if y == cy else curses.A_NORMAL
+                        scr.addnstr(y, 0, line, maxx - 1, attr)
+                    except curses.error:
+                        pass
+                note = 'hpremote: %s | %s | Ctrl-Q detaches' % (
+                    console, 'watch only' if backend == 'watch-only' else 'control via ' + backend)
+                try:
+                    scr.addnstr(maxy - 1, 0, note, maxx - 1, curses.A_REVERSE)
+                except curses.error:
+                    pass
+                scr.refresh()
+                last = data
+            elif data is None:
+                maxy, maxx = scr.getmaxyx()
+                try:
+                    scr.addnstr(0, 0, 'hpremote: console %s not readable' % console, maxx - 1)
+                    scr.refresh()
+                except curses.error:
+                    pass
+            ch = scr.getch()
+            if ch == -1:
+                continue
+            if ch in (17, 29):  # Ctrl-Q or Ctrl-] detaches
+                break
+            if backend == 'watch-only' or inj is None:
+                continue
+            inj.inject(map_key(ch))
+
+    import curses as _c
+    try:
+        _c.wrapper(_main)
+    finally:
+        if inj:
+            inj.close()
+
+
+def cmd_attach(token, watch=False):
+    st = load_state()
+    if not st.get('enabled'):
+        print('Remote desktop is off on the Pi (hpremote on to enable).')
+        return 1
+    if not token or not token_ok(st, token):
+        log('attach refused (bad token)')
+        print('Not paired. Run "hpremote pair" first (needs the PIN shown on the Pi).')
+        return 1
+    peer = os.environ.get('SSH_CONNECTION', 'local').split()[0]
+    pid = os.getpid()
+    os.makedirs(RUN_DIR, exist_ok=True)
+    with open(session_file(pid), 'w') as f:
+        json.dump({'pid': pid, 'since': time.strftime('%Y-%m-%dT%H:%M:%S'),
+                   'peer': peer, 'watch': bool(watch)}, f)
+    log('attach start pid=%d peer=%s watch=%d' % (pid, peer, watch))
+    wall('hpremote: a remote viewer just attached to this console '
+         '(hpremote kill to disconnect, hpremote off to disable)')
+    try:
+        run_viewer(watch)
+    finally:
+        try:
+            os.remove(session_file(pid))
+        except OSError:
+            pass
+        log('attach end pid=%d' % pid)
+        wall('hpremote: the remote viewer detached')
+    return 0
+
+
+def cmd_menu():
+    while True:
+        print()
+        cmd_status()
+        print()
+        choice = input('[o] turn on   [f] turn off   [k] disconnect viewers   [q] back: ').strip().lower()
+        if choice == 'o':
+            cmd_on()
+        elif choice == 'f':
+            cmd_off()
+        elif choice == 'k':
+            cmd_kill()
+        elif choice in ('q', ''):
+            return 0
+
+
+USAGE = __doc__ + """
+commands: on | pair | attach TOKEN [--watch] | status | off | kill
+(no command: interactive menu, used by the Home launcher)
+"""
+
+
+def main(argv):
+    cmd = argv[1] if len(argv) > 1 else ''
+    if cmd == 'on':
+        return cmd_on()
+    if cmd == 'pair':
+        return cmd_pair()
+    if cmd == 'attach':
+        if len(argv) < 3:
+            print(USAGE)
+            return 1
+        return cmd_attach(argv[2], watch='--watch' in argv[3:])
+    if cmd == 'status':
+        return cmd_status()
+    if cmd == 'off':
+        return cmd_off()
+    if cmd == 'kill':
+        return cmd_kill()
+    if cmd in ('-h', '--help', 'help'):
+        print(USAGE)
+        return 0
+    if cmd == '--version':
+        print(VERSION)
+        return 0
+    if cmd == '':
+        return cmd_menu()
+    print(USAGE)
+    return 1
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))/
