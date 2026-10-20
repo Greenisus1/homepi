@@ -1,0 +1,3 @@
+# hpremote (remote desktop): virtual keyboard so attached viewers' keystrokes
+# land on the console exactly like a real keyboard.
+CONFIG_INPUT_UINPUT=y
