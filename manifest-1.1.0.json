@@ -1,0 +1,94 @@
+{
+ "files": [
+  {
+   "path": "usr/bin/vaultlib.py",
+   "source": "buildroot-external/board/homepi/rootfs-overlay/usr/bin/vaultlib.py",
+   "sha256": "0bbe18a248736eac8766f357756149198a117d3bf9ec419fe3a7b2fe6cb4a76e",
+   "mode": 493
+  },
+  {
+   "path": "usr/bin/authlib.py",
+   "source": "buildroot-external/board/homepi/rootfs-overlay/usr/bin/authlib.py",
+   "sha256": "87af995a1bc9f16cbfa5a2504a3b7535535f271679b6b0e0dc530d5448ac2558",
+   "mode": 493
+  },
+  {
+   "path": "usr/bin/watchdogd.py",
+   "source": "buildroot-external/board/homepi/rootfs-overlay/usr/bin/watchdogd.py",
+   "sha256": "4c962a73f0942c485e30b612bf3a03aafb4ed68eba00e74364912906d8c97b71",
+   "mode": 493
+  },
+  {
+   "path": "usr/bin/fanctl.py",
+   "source": "buildroot-external/board/homepi/rootfs-overlay/usr/bin/fanctl.py",
+   "sha256": "e4c6b96a33edaace0cf2845b4bd3827e0ebfe29c8b9eb53d9885d234dada8e12",
+   "mode": 493
+  },
+  {
+   "path": "usr/bin/spanfs.py",
+   "source": "buildroot-external/board/homepi/rootfs-overlay/usr/bin/spanfs.py",
+   "sha256": "0f74480806957d38c9da463dbce7fa718d210673255ed2ccb55e6532dc516c65",
+   "mode": 493
+  },
+  {
+   "path": "usr/bin/ghlink.py",
+   "source": "buildroot-external/board/homepi/rootfs-overlay/usr/bin/ghlink.py",
+   "sha256": "ff6f16568e683dfc57bba2db7b39d74beedf67ade7ec42042665677fae64ed8c",
+   "mode": 493
+  },
+  {
+   "path": "usr/bin/hpremote",
+   "source": "buildroot-external/board/homepi/rootfs-overlay/usr/bin/hpremote",
+   "sha256": "330bc82716d3be980eca87baf27427b38ce159f862c1fcdd3083bee7ee98aa63",
+   "mode": 493
+  },
+  {
+   "path": "usr/bin/hpbackup.py",
+   "source": "buildroot-external/board/homepi/rootfs-overlay/usr/bin/hpbackup.py",
+   "sha256": "2e83f25249aaf4da16ac2bab4cdaf43cae6d25c9037753acea8372928e79e41c",
+   "mode": 493
+  },
+  {
+   "path": "usr/bin/rmsafe.py",
+   "source": "buildroot-external/board/homepi/rootfs-overlay/usr/bin/rmsafe.py",
+   "sha256": "4ce5b46fef85ecea15b142efbbf886160b0fca4322d47a220bc660dba8f71a1e",
+   "mode": 493
+  },
+  {
+   "path": "usr/bin/homepilib.py",
+   "source": "buildroot-external/board/homepi/rootfs-overlay/usr/bin/homepilib.py",
+   "sha256": "e315026f6e44818de3a8b635577c3ba0e09d1a0917f8100e80a55873c2edc3ef",
+   "mode": 493
+  },
+  {
+   "path": "usr/bin/hpupdate.py",
+   "source": "buildroot-external/board/homepi/rootfs-overlay/usr/bin/hpupdate.py",
+   "sha256": "647ac7d7f30d81dd5b6553f17b69c98ca3db46fb672d69adcd923d8b48264cc3",
+   "mode": 493
+  },
+  {
+   "path": "usr/bin/homepi",
+   "source": "buildroot-external/board/homepi/rootfs-overlay/usr/bin/homepi",
+   "sha256": "c478b7868afeac62a9e86920a2212f1fb8f0fbc8acdcb842dddd21133f265942",
+   "mode": 493
+  },
+  {
+   "path": "usr/bin/appstore",
+   "source": "buildroot-external/board/homepi/rootfs-overlay/usr/bin/appstore",
+   "sha256": "81b8b7b52b3a6d2049c7a219a2e37c1a5f2f623e6d989262229e23903e9472c5",
+   "mode": 493
+  },
+  {
+   "path": "usr/bin/qr.py",
+   "source": "buildroot-external/board/homepi/rootfs-overlay/usr/bin/qr.py",
+   "sha256": "3dce0e885d258853d4c9db2177aa33992eae351980ad4b98ac84aaab2c674576",
+   "mode": 493
+  },
+  {
+   "path": "usr/bin/homepiauth.py",
+   "source": "buildroot-external/board/homepi/rootfs-overlay/usr/bin/homepiauth.py",
+   "sha256": "df01f158e8c86627ba50e259968bd92f15d459aa2d3af7ff55a2f248b3fe6f12",
+   "mode": 493
+  }
+ ]
+}
