@@ -4,10 +4,10 @@ import curses, os, subprocess, sys, tempfile
 
 import homepilib
 
-VERSION = '1.0.0'
+VERSION = '1.1.0'
 DEMO = os.environ.get('HOMEPI_DEMO') == '1'
 
-SPECIAL = [('App Store', 'appstore'), ('Backup to GitHub...', 'hpbackup backup'), ('Update Home Pi...', 'hpupdate --auto'), ('Shell', None),
+SPECIAL = [('App Store', 'appstore'), ('Backup to GitHub...', 'hpbackup backup'), ('Update Home Pi...', 'hpupdate --auto'), ('Remote desktop...', 'hpremote'), ('Shell', None),
            ('Reboot...', 'REBOOT'), ('Power off...', 'POWEROFF')]
 
 
