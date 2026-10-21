@@ -1,0 +1,88 @@
+#!/bin/sh
+# Home Pi 1.1.0 flasher - writes the official image to a second SD card or USB drive.
+# Never touches the drive the Pi booted from.
+# Run as root:  sh homepi-flash.sh
+set -e
+
+URL=https://x0.at/6dsk.xz
+XZSHA=67d6b210c64daaf1578e5e85195016198a1a85b0a426c9d57382e2094b72a482
+IMGSHA=2c9f2731485690afef45c0a000a75e8ae11e4f24b4dd9c78430d6a89a3ffad6d
+
+if [ "$(id -u)" != "0" ]; then
+  echo "Please run as root (log in as root first)."
+  exit 1
+fi
+
+ROOTSRC=$(findmnt -n -o SOURCE /)
+BOOT=$(lsblk -no PKNAME "$ROOTSRC" 2>/dev/null | head -n 1)
+if [ -z "$BOOT" ]; then
+  BOOT=$(basename "$ROOTSRC" | sed -e 's/p[0-9]*$//' -e 's/[0-9]*$//')
+fi
+if [ -z "$BOOT" ]; then
+  echo "Could not identify the boot drive. Stopping for safety."
+  exit 1
+fi
+echo "Boot drive: /dev/$BOOT (protected, will not be listed)"
+
+lsblk -dn -o NAME,SIZE,TYPE > /tmp/hp-list.txt
+NAMES=""
+SIZES=""
+while read name size type; do
+  [ "$type" = "disk" ] || continue
+  [ "$name" = "$BOOT" ] && continue
+  NAMES="$NAMES $name"
+  SIZES="$SIZES $size"
+done < /tmp/hp-list.txt
+rm -f /tmp/hp-list.txt
+
+if [ -z "$NAMES" ]; then
+  echo "No spare drive found. Plug in the second card or USB drive, then run again."
+  exit 1
+fi
+
+echo ""
+echo "Spare drives (all data on the one you pick will be erased):"
+n=0
+for name in $NAMES; do
+  n=$((n+1))
+  size=$(echo "$SIZES" | cut -d' ' -f$((n+1)))
+  echo "  $n = /dev/$name size $size"
+done
+printf "Type the number of the drive to use: "
+read num
+case "$num" in
+  ''|*[!0-9]*) echo "Not a number. Stopping."; exit 1;;
+esac
+[ "$num" -ge 1 ] && [ "$num" -le "$n" ] || { echo "Out of range. Stopping."; exit 1; }
+TARGET=$(echo "$NAMES" | cut -d' ' -f$((num+1)))
+TSIZE=$(echo "$SIZES" | cut -d' ' -f$((num+1)))
+
+echo ""
+echo "Target: /dev/$TARGET size $TSIZE"
+echo "EVERYTHING on /dev/$TARGET will be ERASED and replaced with Home Pi 1.1.0."
+printf "Type y to go ahead: "
+read ans
+[ "$ans" = "y" ] || { echo "Stopped. Nothing was written."; exit 1; }
+
+mkdir -p /root/homepi-flash
+cd /root/homepi-flash
+umount /dev/${TARGET}* 2>/dev/null || true
+
+echo ""
+echo "Downloading the image (about 44 MB)..."
+wget -O homepi.img.xz "$URL"
+echo "Checking the download hash..."
+echo "$XZSHA  homepi.img.xz" | sha256sum -c -
+echo "Decompressing..."
+xz -d homepi.img.xz
+echo "Checking the image hash..."
+echo "$IMGSHA  homepi.img" | sha256sum -c -
+
+echo "Writing to /dev/$TARGET (takes a few minutes)..."
+dd if=homepi.img of=/dev/$TARGET bs=4M conv=fsync status=progress
+sync
+
+rm -f homepi.img
+echo ""
+echo "DONE. Home Pi 1.1.0 is on /dev/$TARGET."
+echo "Power off, swap the card in, and boot."
