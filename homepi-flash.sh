@@ -66,6 +66,11 @@ read ans
 
 mkdir -p /root/homepi-flash
 cd /root/homepi-flash
+FREE=$(df -Pm . | awk 'NR==2 {print $4}')
+if [ "${FREE:-0}" -lt 400 ]; then
+  echo "Only $FREE MB free on this card. Need 400 MB. Stopping."
+  exit 1
+fi
 umount /dev/${TARGET}* 2>/dev/null || true
 
 echo ""
