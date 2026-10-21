@@ -425,6 +425,10 @@ def open_injector(watch):
     if watch or backend == 'none':
         return None, 'watch-only'
     if backend in ('auto', 'uinput'):
+        if not os.path.exists('/dev/uinput'):
+            subprocess.run(['modprobe', 'uinput'], check=False,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            time.sleep(0.3)
         try:
             return UinputInjector(), 'uinput'
         except OSError:
