@@ -39,7 +39,7 @@
   {
    "path": "usr/bin/hpremote",
    "source": "buildroot-external/board/homepi/rootfs-overlay/usr/bin/hpremote",
-   "sha256": "330bc82716d3be980eca87baf27427b38ce159f862c1fcdd3083bee7ee98aa63",
+   "sha256": "e0d7a8466984a10c4411302b9df569e58d5c2abfaf64a2c5beb5b0476accaee6",
    "mode": 493
   },
   {
