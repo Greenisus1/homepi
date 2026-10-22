@@ -11,6 +11,18 @@
    "devices": [
     "pi5-64bit"
    ]
+  },
+  {
+   "name": "Home Pi (Pi 3)",
+   "description": "Home Pi 1.1.2 - Greenisus1's own distro for Raspberry Pi 3A+ (terminal Home launcher, App Store). Same Home Pi as the Pi 5 entry. Not yet tested on 3A+ hardware.",
+   "url": "https://x0.at/Okac.xz",
+   "extract_size": 3078619136,
+   "extract_sha256": "5329da361d279634370889564338d99d94051d0e5f7ee8d4a2124abe64baa73a",
+   "image_download_size": 615683736,
+   "release_date": "2026-10-21",
+   "devices": [
+    "pi3-64bit"
+   ]
   }
  ]
 }
