@@ -2,18 +2,18 @@
 """Home Pi App Store: browse and install Pi Store apps from the Home launcher.
 Catalog: the public Greenisus1 GitHub repos carrying an app-version.json
 marker (the Pi Store format). Install = fetch the repo tarball into
-/root/apps/<name> and run its app-store.sh. Needs network for live use.
+~/apps/<name> and run its app-store.sh. Needs network for live use.
 Demo/tests: HOMEPI_STORE_DEMO=<catalog.json> with local src dirs, no network,
 apps root overridden by HOMEPI_APPS_ROOT."""
 import curses, json, os, subprocess, sys, urllib.request
 
-VERSION = '1.0.0'
+VERSION = '1.0.1'
 ORG = 'Greenisus1'
 REPOS_URL = 'https://api.github.com/users/%s/repos?per_page=100' % ORG
 MARKER_URL = 'https://raw.githubusercontent.com/%s/%%s/main/app-version.json' % ORG
 TARBALL_URL = 'https://github.com/%s/%%s/archive/refs/heads/main.tar.gz' % ORG
 DEMO_CATALOG = os.environ.get('HOMEPI_STORE_DEMO')
-APPS_ROOT = os.environ.get('HOMEPI_APPS_ROOT', '/root/apps')
+APPS_ROOT = os.environ.get('HOMEPI_APPS_ROOT', os.path.expanduser('~/apps'))
 
 
 def fetch_json(url):
