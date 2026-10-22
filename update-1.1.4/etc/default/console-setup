@@ -1,0 +1,14 @@
+# CONFIGURATION FILE FOR SETUPCON
+
+ACTIVE_CONSOLES="/dev/tty[1-6]"
+
+CHARMAP="UTF-8"
+
+CODESET="guess"
+FONTFACE=""
+FONTSIZE=""
+
+# Home Pi 1.1.4: explicit readable console font (Terminus Bold, 16x32 pixels).
+FONT="Lat15-TerminusBold32x16.psf.gz"
+
+VIDEOMODE=
