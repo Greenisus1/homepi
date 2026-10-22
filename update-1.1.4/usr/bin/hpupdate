@@ -1,0 +1,3 @@
+#!/bin/sh
+# Home Pi: convenience command for the updater (the updater itself is hpupdate.py).
+exec python3 /usr/bin/hpupdate.py "$@"
