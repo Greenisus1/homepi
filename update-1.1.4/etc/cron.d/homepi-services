@@ -1,0 +1,2 @@
+# Home Pi: keep the tty1 login prompt and helper services on (added by hpupdate 1.1.4).
+@reboot root /usr/bin/homepi-enable-services
