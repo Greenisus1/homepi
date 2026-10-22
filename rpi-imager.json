@@ -3,7 +3,7 @@
   {
    "name": "Home Pi",
    "description": "Home Pi 1.1.3 - Greenisus1's own distro for Raspberry Pi 5 (terminal Home launcher, App Store, console login homepi/homepi)",
-   "url": "https://x0.at/7sIX.xz",
+   "url": "https://github.com/Greenisus1/homepi/releases/download/v1.1.3/homepi-1.1.3-rpi5.img.xz",
    "extract_size": 3078619136,
    "extract_sha256": "6217c1a4a1571f1ac0a442557865d2d3a41b9a21cc917e24466025ef748d6f5b",
    "image_download_size": 615701244,
@@ -16,7 +16,7 @@
   {
    "name": "Home Pi (Pi 3)",
    "description": "Home Pi 1.1.3 - Greenisus1's own distro for Raspberry Pi 3A+ (terminal Home launcher, App Store, console login homepi/homepi). Same Home Pi as the Pi 5 entry. Not yet tested on 3A+ hardware.",
-   "url": "https://x0.at/br6X.xz",
+   "url": "https://github.com/Greenisus1/homepi/releases/download/v1.1.3/homepi-1.1.3-rpi3.img.xz",
    "extract_size": 3078619136,
    "extract_sha256": "8ab30ada12b11bc679f36cf738272056f279090b72e5e9621693a21586a830df",
    "image_download_size": 615684880,
