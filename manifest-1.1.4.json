@@ -1,0 +1,64 @@
+{
+ "files": [
+  {
+   "path": "usr/bin/appstore",
+   "source": "buildroot-external/board/homepi/rootfs-overlay/usr/bin/appstore",
+   "sha256": "e306036f622d1c4ce777af59c22de36fd7dc01059d0a94b55461c5e9dfd5e690",
+   "mode": 493
+  },
+  {
+   "path": "usr/bin/hpupdate",
+   "source": "update-1.1.4/usr/bin/hpupdate",
+   "sha256": "9ffadde714d0c51511e304f607a6f722a0551155f1bdd8c38bfe12b1d6e55a4e",
+   "mode": 493
+  },
+  {
+   "path": "usr/bin/homepi-enable-services",
+   "source": "update-1.1.4/usr/bin/homepi-enable-services",
+   "sha256": "6c9f706029afb0741022f972f0cc52ba3e09be67e2e51203699469ef5583f005",
+   "mode": 493
+  },
+  {
+   "path": "etc/cron.d/homepi-services",
+   "source": "update-1.1.4/etc/cron.d/homepi-services",
+   "sha256": "edf8ab3707ce10d0c9849e39bdf28a9ab038a06843466cf5158466016e5cb3c5",
+   "mode": 420
+  },
+  {
+   "path": "etc/vconsole.conf",
+   "source": "update-1.1.4/etc/vconsole.conf",
+   "sha256": "fe68694936d22949fca4ae1235d4761bbb689f1430d5431395cb54e7f49719fa",
+   "mode": 420
+  },
+  {
+   "path": "etc/default/console-setup",
+   "source": "update-1.1.4/etc/default/console-setup",
+   "sha256": "f379e366576ca25d2f5320cc5a7667808c9ae3c11e0a64a7aa3fbc39205b0353",
+   "mode": 420
+  },
+  {
+   "path": "home/homepi/.bashrc",
+   "source": "update-1.1.4/home/homepi/.bashrc",
+   "sha256": "c45d4fb3e21d5e2fcbb33ca7e16f6649df75fa491681e6345b0624ea13142add",
+   "mode": 420
+  },
+  {
+   "path": "home/homepi/.profile",
+   "source": "update-1.1.4/home/homepi/.profile",
+   "sha256": "28b4a453b68dde64f814e94bab14ee651f4f162e15dd9920490aa1d49f05d2a4",
+   "mode": 420
+  },
+  {
+   "path": "home/homepi/.bash_logout",
+   "source": "update-1.1.4/home/homepi/.bash_logout",
+   "sha256": "26882b79471c25f945c970f8233d8ce29d54e9d5eedcd2884f88affa84a18f56",
+   "mode": 420
+  },
+  {
+   "path": "home/homepi/apps/.keep",
+   "source": "update-1.1.4/home/homepi/apps/.keep",
+   "sha256": "be8d6575d8ac12b8f354720a02403ad9b81f6e1a34840e3386ca9f0090937d19",
+   "mode": 420
+  }
+ ]
+}
