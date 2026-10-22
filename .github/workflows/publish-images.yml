@@ -24,6 +24,7 @@ jobs:
       - name: Create the release with both images as assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           cat > RELEASE_NOTES.md <<'NOTES'
           Bootable Home Pi images. For Raspberry Pi Imager, use this repo's rpi-imager.json as the custom OS list URL.
