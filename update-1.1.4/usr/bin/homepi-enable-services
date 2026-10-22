@@ -1,0 +1,22 @@
+#!/bin/sh
+# Home Pi 1.1.4: turn on the tty1 login prompt and the helper services.
+# Installed by hpupdate; cron runs it at every boot. Idempotent. Run as root.
+
+# Remove stale pre-1.1.4 enablement: those .wants entries were hard links,
+# and systemd only follows symlinks, so they never started anything.
+rm -f /etc/systemd/system/multi-user.target.wants/homepi-console.service \
+      /etc/systemd/system/multi-user.target.wants/homepi-fanctl.service \
+      /etc/systemd/system/multi-user.target.wants/homepi-watchdog.service
+
+# Login prompt on the main screen (tty1) after boot, no Ctrl+Alt+F-key needed.
+systemctl enable --now getty@tty1.service
+
+# Home Pi helpers (fan control, watchdog) and SSH.
+systemctl enable --now homepi-fanctl.service homepi-watchdog.service ssh.service
+
+# Apply the 1.1.4 console font now; console-setup.service redoes it at boot.
+setupcon 2>/dev/null || true
+
+# hpupdate runs as root; keep homepi's home owned by homepi.
+chown -R homepi:homepi /home/homepi 2>/dev/null || true
+exit 0
