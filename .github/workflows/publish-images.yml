@@ -1,0 +1,43 @@
+name: publish-images
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download images from the temp host with resume and retry
+        run: |
+          set -e
+          fetch() {
+            for i in $(seq 1 30); do
+              curl -fSL -C - --retry 5 --retry-all-errors -A "Wget/1.21" -o "$2" "$1" && break
+              sleep 10
+            done
+          }
+          fetch "https://x0.at/7sIX.xz" homepi-1.1.3-rpi5.img.xz
+          fetch "https://x0.at/br6X.xz" homepi-1.1.3-rpi3.img.xz
+          echo "9f198f41996561a36de957483fac35ac5ea3987133defb888836ddcc2765fe4a  homepi-1.1.3-rpi5.img.xz" > sums.txt
+          echo "7c23d37aa7dcce46dc7106c5a864989887ab18a0432509848ab49a46becf6c92  homepi-1.1.3-rpi3.img.xz" >> sums.txt
+          sha256sum -c sums.txt
+      - name: Create the release with both images as assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cat > RELEASE_NOTES.md <<'NOTES'
+          Bootable Home Pi images. For Raspberry Pi Imager, use this repo's rpi-imager.json as the custom OS list URL.
+
+          - homepi-1.1.3-rpi5.img.xz - Raspberry Pi 5
+          - homepi-1.1.3-rpi3.img.xz - Raspberry Pi 3A+ (not yet tested on 3A+ hardware)
+
+          Console login: user homepi, password homepi. tty1 runs the Home launcher with a self-healing supervisor.
+
+          sha256 (xz):
+          9f198f41996561a36de957483fac35ac5ea3987133defb888836ddcc2765fe4a  homepi-1.1.3-rpi5.img.xz
+          7c23d37aa7dcce46dc7106c5a864989887ab18a0432509848ab49a46becf6c92  homepi-1.1.3-rpi3.img.xz
+          NOTES
+          gh release create v1.1.3 \
+            --title "Home Pi 1.1.3" \
+            --notes-file RELEASE_NOTES.md \
+            homepi-1.1.3-rpi5.img.xz homepi-1.1.3-rpi3.img.xz
