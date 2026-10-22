@@ -2,13 +2,15 @@
  "os_list": [
   {
    "name": "Home Pi",
-   "description": "Home Pi 1.1.0 - Greenisus1's own distro for Raspberry Pi 5 (terminal Home launcher, App Store, remote desktop)",
-   "url": "https://x0.at/6dsk.xz",
-   "extract_size": 301990400,
-   "extract_sha256": "2c9f2731485690afef45c0a000a75e8ae11e4f24b4dd9c78430d6a89a3ffad6d",
-   "image_download_size": 43867432,
+   "description": "Home Pi 1.1.1 - Greenisus1's own distro for Raspberry Pi 5 (terminal Home launcher, App Store, remote desktop)",
+   "url": "https://x0.at/8icB.xz",
+   "extract_size": 3078619136,
+   "extract_sha256": "417da524d5e9e12df79f3359d9290c65f72dca1a6b123d81e041711eda6a31cd",
+   "image_download_size": 615700172,
    "release_date": "2026-10-21",
-   "devices": ["pi5-64bit"]
+   "devices": [
+    "pi5-64bit"
+   ]
   }
  ]
 }
