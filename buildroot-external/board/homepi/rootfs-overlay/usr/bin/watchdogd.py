@@ -8,7 +8,7 @@ No /dev/watchdog (or disabled in /etc/homepi/watchdog.conf): exits cleanly.
 Tests: --once with WATCHDOGD_DEV=<regular file>."""
 import os, signal, sys, time
 
-VERSION = '1.0.0'
+VERSION = '1.0.1'
 DEV = os.environ.get('WATCHDOGD_DEV', '/dev/watchdog')
 CONF = os.environ.get('WATCHDOGD_CONF', '/etc/homepi/watchdog.conf')
 
@@ -39,8 +39,12 @@ def main():
         print('watchdogd: no %s - nothing to do' % DEV)
         return 0
     ping = max(1, int(conf.get('PING_SECONDS', '10')))
-    fd = os.open(DEV, os.O_WRONLY)
-    os.write(fd, b'1')
+    try:
+        fd = os.open(DEV, os.O_WRONLY)
+        os.write(fd, b'1')
+    except OSError as e:
+        print('watchdogd: %s is not usable here (%s) - nothing to do' % (DEV, e))
+        return 0
     if '--once' in sys.argv:
         os.write(fd, b'V')            # magic close: disarm for the test
         os.close(fd)
