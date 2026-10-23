@@ -1,0 +1,28 @@
+{
+ "files": [
+  {
+   "path": "usr/bin/watchdogd.py",
+   "source": "buildroot-external/board/homepi/rootfs-overlay/usr/bin/watchdogd.py",
+   "sha256": "6ec7de4eb3ab7315239093d89c9fd98492bdc19aa9529d540d25e93255a40d65",
+   "mode": 493
+  },
+  {
+   "path": "usr/bin/homepi-enable-services",
+   "source": "update-1.1.5/usr/bin/homepi-enable-services",
+   "sha256": "f4ee1bcb92a6daaefe68f55ef9fea9cb363347aabac70280b5c205af3b3f341e",
+   "mode": 493
+  },
+  {
+   "path": "etc/systemd/system/homepi-fanctl.service",
+   "source": "update-1.1.5/etc/systemd/system/homepi-fanctl.service",
+   "sha256": "e43be4b34a7834dca6063e7d7c2d276808c8ff157e8c6e8daa6111b0b63b98cd",
+   "mode": 420
+  },
+  {
+   "path": "etc/systemd/system/homepi-watchdog.service",
+   "source": "update-1.1.5/etc/systemd/system/homepi-watchdog.service",
+   "sha256": "3e0d33205d31db481bc42231d9d2a8703cf8b6af453aead8e638c329f0ad2115",
+   "mode": 420
+  }
+ ]
+}
