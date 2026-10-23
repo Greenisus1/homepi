@@ -17,7 +17,12 @@ def entries():
                 ('Watchgoose', 'echo demo-wg')] + SPECIAL
     apps = homepilib.discover_apps(['/root/apps', '/opt/apps', os.path.expanduser('~/apps')],
                                    '/etc/homepi/apps.json')
-    return apps + SPECIAL
+    out, seen = [], set()
+    for label, cmd in apps + SPECIAL:
+        if label not in seen:
+            seen.add(label)
+            out.append((label, cmd))
+    return out
 
 
 def run_command(scr, cmd):
@@ -90,4 +95,4 @@ def main():
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    sys.exit(main()) o
