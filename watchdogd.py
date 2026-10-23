@@ -8,7 +8,7 @@ No /dev/watchdog (or disabled in /etc/homepi/watchdog.conf): exits cleanly.
 Tests: --once with WATCHDOGD_DEV=<regular file>."""
 import os, signal, sys, time
 
-VERSION = '1.0.1'
+VERSION = '1.0.2'
 DEV = os.environ.get('WATCHDOGD_DEV', '/dev/watchdog')
 CONF = os.environ.get('WATCHDOGD_CONF', '/etc/homepi/watchdog.conf')
 
@@ -54,15 +54,31 @@ def main():
     signal.signal(signal.SIGTERM, lambda *a: stop.append(1))
     signal.signal(signal.SIGINT, lambda *a: stop.append(1))
     print('watchdogd: armed, pinging every %ds' % ping)
-    while not stop:
-        time.sleep(ping)
-        if stop:
-            break
-        os.write(fd, b'1')
-    os.write(fd, b'V')                # deliberate stop must not reboot
-    os.close(fd)
+    rc = 0
+    try:
+        while not stop:
+            time.sleep(ping)
+            if stop:
+                break
+            try:
+                os.write(fd, b'1')
+            except OSError as e:
+                print('watchdogd: ping failed: %s' % e)
+                rc = 1
+                break
+    finally:
+        # Whatever happens, never leave the hardware timer armed:
+        # the magic character 'V' makes the close a clean disarm.
+        try:
+            os.write(fd, b'V')
+        except OSError:
+            pass
+        try:
+            os.close(fd)
+        except OSError:
+            pass
     print('watchdogd: disarmed, stopped')
-    return 0
+    return rc
 
 
 if __name__ == '__main__':
