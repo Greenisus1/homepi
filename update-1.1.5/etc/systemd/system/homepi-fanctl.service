@@ -1,0 +1,15 @@
+[Unit]
+Description=Home Pi fan control (no-op-safe without a controllable fan)
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/fanctl.py
+TimeoutStartSec=10
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target
