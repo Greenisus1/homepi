@@ -1,0 +1,16 @@
+[Unit]
+Description=Home Pi watchdog (reboot-before-freeze)
+After=multi-user.target
+ConditionPathExists=/dev/watchdog
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/watchdogd.py
+TimeoutStartSec=10
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target
