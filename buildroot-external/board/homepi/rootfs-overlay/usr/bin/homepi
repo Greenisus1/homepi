@@ -29,7 +29,16 @@ def run_command(scr, cmd):
     curses.endwin()
     print()
     try:
-        subprocess.run(cmd, shell=True)
+        if cmd == 'hpupdate --auto':
+            # System updates write /usr and /var/backups. Only elevate this action.
+            args = ['hpupdate', '--auto']
+            if os.geteuid() != 0:
+                args = ['sudo', '--'] + args
+            result = subprocess.run(args)
+        else:
+            result = subprocess.run(cmd, shell=True)
+        if result.returncode:
+            print('Command failed (exit %s).' % result.returncode)
     except Exception as e:
         print('error:', e)
     print('\n[enter] back to Home')
