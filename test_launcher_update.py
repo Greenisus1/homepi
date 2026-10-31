@@ -30,5 +30,18 @@ class UpdatePrivileges(unittest.TestCase):
             launcher.run_command(None, 'hpupdate --auto')
             output.assert_any_call('Command failed (exit 1).')
 
+class MenuPrivileges(unittest.TestCase):
+    def test_menu_relaunches_as_admin(self):
+        with patch.object(launcher, 'DEMO', False), patch.object(launcher.os, 'geteuid', return_value=1001), patch.object(launcher.os, 'execvp') as execute, patch.object(launcher.sys, 'argv', ['homepi']), patch.object(launcher.curses, 'wrapper') as draw:
+            launcher.main()
+            execute.assert_called_once_with('sudo', ['sudo', '--', sys.executable, launcher.os.path.abspath(launcher.__file__)])
+            draw.assert_not_called()
+
+    def test_root_menu_does_not_relaunch(self):
+        with patch.object(launcher.os, 'geteuid', return_value=0), patch.object(launcher.os, 'execvp') as execute, patch.object(launcher.sys, 'argv', ['homepi']), patch.object(launcher.curses, 'wrapper') as draw:
+            launcher.main()
+            execute.assert_not_called()
+            draw.assert_called_once_with(launcher.main_menu)
+
 if __name__ == '__main__':
     unittest.main()
