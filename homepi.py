@@ -100,6 +100,11 @@ def main():
     if '--version' in sys.argv:
         print(VERSION)
         return 0
+    if os.geteuid() != 0 and not DEMO:
+        # Relaunch the whole menu as admin so all menu actions inherit it.
+        os.execvp('sudo', ['sudo', '--', sys.executable,
+                           os.path.abspath(__file__)] + sys.argv[1:])
+        return 0
     return curses.wrapper(main_menu)
 
 
