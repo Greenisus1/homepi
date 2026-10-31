@@ -9,7 +9,7 @@
     {
       "path": "usr/bin/homepi",
       "source": "buildroot-external/board/homepi/rootfs-overlay/usr/bin/homepi",
-      "sha256": "481f15b55483b33878176628764d9ea39d19df33998003a0b906bf2933af5d9a",
+      "sha256": "9d508a4941d563ac5b8d4375c5a71d758eabb126a50114be1d78edfe74eefdb4",
       "mode": 493
     },
     {
