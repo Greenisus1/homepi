@@ -1,4 +1,5 @@
 import hashlib, json, os, subprocess, sys, tempfile, unittest
+from pathlib import Path
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 HP = os.path.join(HERE, 'hpupdate.py')
@@ -83,6 +84,71 @@ class TestHpUpdate(unittest.TestCase):
         r = self.run_hp('--check')
         self.assertEqual(r.returncode, 0)
         self.assertFalse(os.path.exists(os.path.join(self.root, 'usr/bin/qr.py')))
+
+    def installed_version(self, version):
+        folder = Path(self.root) / 'etc/homepi'
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / 'system-version.json').write_text(json.dumps({'version': version}))
+
+    def test_force_reinstalls_same_version_and_backs_up(self):
+        make_remote(self.remote, '9', {'usr/bin/homepi': b'repaired'})
+        self.installed_version('9')
+        target = Path(self.root) / 'usr/bin/homepi'
+        target.parent.mkdir(parents=True)
+        target.write_bytes(b'broken')
+        self.assertIn('up to date', self.run_hp().stdout)
+        self.assertEqual(target.read_bytes(), b'broken')
+        result = self.run_hp('--force')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('reinstalling version 9', result.stdout)
+        self.assertEqual(target.read_bytes(), b'repaired')
+        backups = list((Path(self.root) / 'var/backups').rglob('homepi'))
+        self.assertTrue(any(p.is_file() and p.read_bytes() == b'broken' for p in backups))
+        self.assertEqual(self.run_hp('--force').returncode, 0)
+        backups = list((Path(self.root) / 'var/backups').rglob('homepi'))
+        self.assertEqual(sum(p.is_file() for p in backups), 2)
+
+    def test_force_check_never_writes(self):
+        make_remote(self.remote, '9', {'usr/bin/homepi': b'new'})
+        self.installed_version('9')
+        result = self.run_hp('--force', '--check')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse((Path(self.root) / 'usr').exists())
+        self.assertFalse((Path(self.root) / 'var/backups').exists())
+
+    def test_force_still_protects_data(self):
+        make_remote(self.remote, '9', {'etc/homepi/auth.json': b'bad', 'root/secret': b'bad'})
+        self.installed_version('9')
+        target = Path(self.root) / 'etc/homepi/auth.json'
+        target.write_bytes(b'keep')
+        result = self.run_hp('--force')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(target.read_bytes(), b'keep')
+        self.assertFalse((Path(self.root) / 'root/secret').exists())
+
+    def test_force_still_checks_hash(self):
+        make_remote(self.remote, '9', {'usr/bin/homepi': b'good'})
+        self.installed_version('9')
+        (Path(self.remote) / 'payload-usr_bin_homepi').write_bytes(b'tampered')
+        result = self.run_hp('--force')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('checksum mismatch', result.stderr)
+        self.assertFalse((Path(self.root) / 'usr/bin/homepi').exists())
+
+    def test_release_package_installs_force_capable_command(self):
+        self.installed_version('1.1.8')
+        self.env['HPUPDATE_REMOTE'] = HERE
+        manifest = json.loads((Path(HERE) / 'manifest-1.1.9.json').read_text())
+        for entry in manifest['files']:
+            self.assertEqual(hashlib.sha256((Path(HERE) / entry['source']).read_bytes()).hexdigest(), entry['sha256'])
+        result = self.run_hp()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        command = Path(self.root) / 'usr/bin/hpupdate'
+        result = subprocess.run(['python3', str(command), '--force', '--check'],
+                                capture_output=True, text=True, env=self.env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('reinstalling version 1.1.9', result.stdout)
+        self.assertEqual((Path(self.root) / 'usr/bin/hpupdate.py').read_bytes(), command.read_bytes())
 
 
 if __name__ == '__main__':

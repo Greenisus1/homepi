@@ -7,11 +7,13 @@ vault.enc, fan.conf, watchdog.conf, or anything under /root (user data).
 Scope: this updates the Home Pi system scripts/config (the python tools,
 launcher, store). It cannot update the kernel or rootfs base - that is a
 reflash, said plainly in the README.
---check: report only. --auto: apply when newer (used by cron).
+--check: report only. --auto: apply when different (used by cron).
+--force: reinstall the published manifest even if the installed version matches.
 DEMO/tests: HPUPDATE_REMOTE=<local dir> acts as the repo raw content."""
-import hashlib, json, os, shutil, sys, time, urllib.request
+import argparse
+import hashlib, json, os, shutil, sys, tempfile, time, urllib.request
 
-VERSION = '1.0.0'
+VERSION = '1.1.9'
 RAW = 'https://raw.githubusercontent.com/Greenisus1/homepi/main'
 REMOTE = os.environ.get('HPUPDATE_REMOTE')           # dir path = demo mode
 LOCAL_VER = '/etc/homepi/system-version.json'
@@ -57,6 +59,7 @@ def apply(remote):
     root = os.environ.get('HPUPDATE_ROOT', '/')
     manifest = json.loads(read_remote(remote['manifest']))
     installed, skipped = [], []
+    backup_run = None
     for entry in manifest['files']:
         rel, want = entry['path'], entry['sha256']
         if rel in PROTECTED or rel.startswith('root/'):
@@ -68,7 +71,10 @@ def apply(remote):
         dest = os.path.join(root, rel)
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         if os.path.exists(dest):
-            backup = os.path.join(BACKUP, time.strftime('%Y%m%d-%H%M%S'), rel)
+            if backup_run is None:
+                os.makedirs(BACKUP, exist_ok=True)
+                backup_run = tempfile.mkdtemp(prefix=time.strftime('%Y%m%d-%H%M%S-'), dir=BACKUP)
+            backup = os.path.join(backup_run, rel)
             os.makedirs(os.path.dirname(backup), exist_ok=True)
             shutil.copy2(dest, backup)
         with open(dest, 'wb') as f:
@@ -82,19 +88,25 @@ def apply(remote):
 
 
 def main():
-    if '--version' in sys.argv:
-        print(VERSION)
-        return 0
+    parser = argparse.ArgumentParser(description='Update HomePi system tools from the published manifest.')
+    parser.add_argument('--version', action='version', version=VERSION)
+    parser.add_argument('--check', action='store_true', help='report only; never install files')
+    parser.add_argument('--auto', action='store_true', help='apply published updates (cron/menu compatibility)')
+    parser.add_argument('--force', action='store_true', help='reinstall even when the version matches; checksums and protections still apply')
+    args = parser.parse_args()
     try:
         remote, newer = check()
     except Exception as e:
         print('hpupdate: cannot reach repo: %s' % e)
         return 1
-    if not newer:
+    if not newer and not args.force:
         print('hpupdate: up to date (version %s)' % local_version())
         return 0
-    print('hpupdate: version %s -> %s' % (local_version(), remote['version']))
-    if '--check' in sys.argv:
+    if not newer:
+        print('hpupdate: reinstalling version %s (--force)' % remote['version'])
+    else:
+        print('hpupdate: version %s -> %s' % (local_version(), remote['version']))
+    if args.check:
         return 0
     installed, skipped = apply(remote)
     for rel in installed:
