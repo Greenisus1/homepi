@@ -210,6 +210,11 @@ def forgot(scr, rec):
     '''GitHub override: same linked account -> recovery secret -> new password,
     data KEPT. Last resort: type ERASE to wipe data and start fresh.
     Returns the refreshed auth record after reset, or None.'''
+    if rec.get('linux_account'):
+        scr.addstr(7, 2, 'Use sudo password to change Linux, disk and vault passwords together.')
+        scr.refresh()
+        time.sleep(3)
+        return None
     if not rec.get('github_login'):
         scr.addstr(7, 2, 'No GitHub override was linked at setup. Cannot reset.   ')
         scr.refresh()

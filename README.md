@@ -92,3 +92,10 @@ Use `predict use` to run a suggestion, `sudo predict use` for normal authorized
 admin execution, `predict wrong COMMAND` to teach a correction, `predict reload`
 to reload, and `predict reset` to reset prediction settings only.
 See [Predict usage and security](docs/predict.md).
+
+### Experimental encrypted image and accounts
+
+The optional [encrypted-image workflow](docs/encryption.md) adds local first-boot
+password setup, encrypted persistent system/user files, `sudo password`,
+`sudo user` to rename the current administrator, and `clear` history trimming.
+It requires a new image and spare-card validation; it is not an hpupdate release.

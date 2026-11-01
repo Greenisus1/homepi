@@ -1,0 +1,1 @@
+homepi 1000 homepi 1000 * /home/homepi /bin/bash sudo HomePi administrator
