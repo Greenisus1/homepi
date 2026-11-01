@@ -2,6 +2,13 @@
 set -eu
 TARGET_DIR=$1
 HOMEPI_REPO=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+# A public factory initramfs must never contain a configured user's credentials.
+for private in auth.json vault.enc account-transaction.json disk.json; do
+    if [ -e "$TARGET_DIR/etc/homepi/$private" ]; then
+        echo "Refusing to package configured account data: $private" >&2
+        exit 1
+    fi
+done
 install -d -m 0755 "$TARGET_DIR/usr/lib/homepi"
 for file in accounts.py disk.py earlyboot.py history.sh; do
     install -m 0644 "$HOMEPI_REPO/security/$file" "$TARGET_DIR/usr/lib/homepi/$file"
