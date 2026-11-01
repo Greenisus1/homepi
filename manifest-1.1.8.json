@@ -1,0 +1,28 @@
+{
+  "files": [
+    {
+      "path": "usr/bin/watchdogd.py",
+      "source": "buildroot-external/board/homepi/rootfs-overlay/usr/bin/watchdogd.py",
+      "sha256": "46e240de22e08001ce00fbcf30ceed5ab5060ee7c372ca60114100dbe0c51915",
+      "mode": 493
+    },
+    {
+      "path": "usr/bin/homepi",
+      "source": "buildroot-external/board/homepi/rootfs-overlay/usr/bin/homepi",
+      "sha256": "9d508a4941d563ac5b8d4375c5a71d758eabb126a50114be1d78edfe74eefdb4",
+      "mode": 493
+    },
+    {
+      "path": "usr/bin/homepi-enable-services",
+      "source": "update-1.1.6/usr/bin/homepi-enable-services",
+      "sha256": "8fe251ece4f925ae0d5fe231a36b6a05215f48fc3d3e54d2c46a25fff20d4456",
+      "mode": 493
+    },
+    {
+      "path": "etc/systemd/user/rpi-connect-wayvnc.service.d/10-homepi-console.conf",
+      "source": "update-1.1.7/etc/systemd/user/rpi-connect-wayvnc.service.d/10-homepi-console.conf",
+      "sha256": "e7d98beebae260c536e42fc2dc0b3b98c2be44a60090b40b889cd42df1e1f3de",
+      "mode": 420
+    }
+  ]
+}
