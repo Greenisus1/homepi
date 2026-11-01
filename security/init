@@ -1,0 +1,17 @@
+#!/bin/sh
+/bin/mount -t proc proc /proc
+/bin/mount -t sysfs sysfs /sys
+/bin/mount -t devtmpfs devtmpfs /dev
+mkdir -p /run /tmp
+/bin/mount -t tmpfs -o mode=0700 tmpfs /run
+/bin/mount -t tmpfs -o mode=1777 tmpfs /tmp
+# No network service or privileged rescue shell before disk authentication.
+while ! /usr/bin/python3 -I /usr/lib/homepi/earlyboot.py; do
+    echo 'Unlock/setup failed. Restart to retry; no emergency shell is exposed.'
+    sleep 86400
+done
+mount --move /proc /newroot/proc
+mount --move /sys /newroot/sys
+mount --move /dev /newroot/dev
+mount --move /run /newroot/run
+exec /sbin/switch_root /newroot /sbin/init
