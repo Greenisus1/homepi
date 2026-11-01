@@ -1,0 +1,20 @@
+name: Predict tests
+on: [push, pull_request]
+jobs:
+  predict:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m unittest test_predict -v
+      - name: Verify overlay and shell syntax
+        run: |
+          cmp predict.py buildroot-external/board/homepi/rootfs-overlay/usr/bin/predict
+          sh -n buildroot-external/board/homepi/rootfs-overlay/usr/bin/homepi-predict-shell
+          bash -n buildroot-external/board/homepi/post-build.sh
+      - name: Verify BusyBox ash missing-command hook
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y busybox
+          busybox ash -c 'command_not_found_handle() { printf "%s\n" "$@"; return 127; }; ehco "literal ; argument"' > /tmp/hook-output || test "$?" = 127
+          printf '%s\n' ehco 'literal ; argument' > /tmp/hook-expected
+          diff -u /tmp/hook-expected /tmp/hook-output

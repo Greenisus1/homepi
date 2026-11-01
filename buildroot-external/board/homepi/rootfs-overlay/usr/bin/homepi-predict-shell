@@ -1,0 +1,13 @@
+# Sourced by interactive ash/bash only. Do not execute this file.
+command_not_found_handle() {
+    /usr/bin/predict suggest "$@"
+    return 127
+}
+# Keep state access unprivileged; only the selected argv goes through real sudo.
+sudo() {
+    if [ "$#" -eq 2 ] && [ "$1" = predict ] && [ "$2" = use ]; then
+        /usr/bin/predict --sudo-use
+    else
+        command sudo "$@"
+    fi
+}

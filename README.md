@@ -84,3 +84,11 @@ Get `/dev/sdX` right; it erases the whole card. Use a SPARE microSD, never his w
 MIT - Greenisus1 (for the Home Pi definition; each bundled part keeps its own license).
 
 Built with AI assistance from my design.
+
+### Command correction
+
+HomePi Predict suggests corrections for missing interactive shell commands.
+Use `predict use` to run a suggestion, `sudo predict use` for normal authorized
+admin execution, `predict wrong COMMAND` to teach a correction, `predict reload`
+to reload, and `predict reset` to reset prediction settings only.
+See [Predict usage and security](docs/predict.md).
