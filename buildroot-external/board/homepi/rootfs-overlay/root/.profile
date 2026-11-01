@@ -4,3 +4,6 @@ if [ -n "$PS1" ] && [ -z "$HOMEPI_LAUNCHER_OFF" ] && command -v homepi-login >/d
 fi
 # Safety rule: interactive rm moves to trash after a confirm (scripts unaffected).
 alias rm='rmsafe'
+if [ -n "$PS1" ]; then
+  . /usr/bin/homepi-predict-shell
+fi
