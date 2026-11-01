@@ -1,0 +1,40 @@
+From: HomePi <homepi@localhost>
+Subject: [PATCH] ash: pass expanded argv to command-not-found hook
+
+Preserve arguments without reevaluating shell text.
+
+Upstream-Status: Pending
+
+--- a/shell/ash.c
++++ b/shell/ash.c
+@@ -10550,6 +10550,17 @@
+ 	/* Execute the command. */
+ 	switch (cmdentry.cmdtype) {
+ 	case CMDUNKNOWN:
++#if ENABLE_ASH_BASH_NOT_FOUND_HOOK
++		{
++			struct tblentry *hookp = cmdlookup("command_not_found_handle", 0);
++			if (hookp && hookp->cmdtype == CMDFUNCTION) {
++				char **hookargv = stalloc((argc + 2) * sizeof(char *));
++				hookargv[0] = (char *) "command_not_found_handle";
++				memcpy(hookargv + 1, argv, (argc + 1) * sizeof(char *));
++				evalfun(hookp->param.func, argc + 1, hookargv, 0);
++			}
++		}
++#endif
+ 		status = 127;
+ 		flush_stdout_stderr();
+ 		goto bail;
+@@ -13958,11 +13969,7 @@
+ #if ENABLE_ASH_BASH_NOT_FOUND_HOOK
+ 		struct tblentry *hookp = cmdlookup("command_not_found_handle", 0);
+ 		if (hookp && hookp->cmdtype == CMDFUNCTION) {
+-			char *argv[3];
+-			argv[0] = (char*) "command_not_found_handle";
+-			argv[1] = name;
+-			argv[2] = NULL;
+-			evalfun(hookp->param.func, 2, argv, 0);
++			/* evalcommand runs the hook with the complete expanded argv. */
+ 			entry->cmdtype = CMDUNKNOWN;
+ 			return;
+ 		}

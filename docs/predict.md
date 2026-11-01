@@ -49,7 +49,9 @@ redirect state to another user's files. Suggestions may contain sensitive comman
 arguments and persist until consumed, reloaded, reset or replaced.
 
 Buildroot enables `CONFIG_ASH_BASH_NOT_FOUND_HOOK` through a BusyBox fragment and
-includes sudo. The post-build step ensures predict is executable. Existing update
+includes sudo. A small BusyBox patch passes the full expanded argument list to
+the hook (upstream ash passes only the name). CI builds the patched BusyBox and
+checks argument preservation. The post-build step ensures predict is executable. Existing update
 manifests are intentionally unchanged: installing the executable alone does not
 install shell integration or change an already built BusyBox. Rebuild the image,
 or have an administrator install the files and enable the corresponding ash option.

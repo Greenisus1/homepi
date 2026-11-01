@@ -13,8 +13,12 @@ jobs:
           bash -n buildroot-external/board/homepi/post-build.sh
       - name: Verify BusyBox ash missing-command hook
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y busybox
-          busybox ash -c 'command_not_found_handle() { printf "%s\n" "$@"; return 127; }; ehco "literal ; argument"' > /tmp/hook-output || test "$?" = 127
+          curl -fsSLO https://busybox.net/downloads/busybox-1.37.0.tar.bz2
+          tar xf busybox-1.37.0.tar.bz2
+          patch -d busybox-1.37.0 -p1 < buildroot-external/board/homepi/patches/busybox/0001-ash-pass-argv-to-command-not-found-hook.patch
+          make -C busybox-1.37.0 defconfig
+          sed -i 's/CONFIG_TC=y/# CONFIG_TC is not set/' busybox-1.37.0/.config
+          make -C busybox-1.37.0 -j2
+          busybox-1.37.0/busybox ash -c 'command_not_found_handle() { printf "%s\n" "$@"; return 127; }; ehco "literal ; argument"' > /tmp/hook-output || test "$?" = 127
           printf '%s\n' ehco 'literal ; argument' > /tmp/hook-expected
           diff -u /tmp/hook-expected /tmp/hook-output
