@@ -23,3 +23,13 @@ if ! grep -q 'includedir /etc/sudoers.d' "$TARGET_DIR/etc/sudoers"; then
     printf '\n@includedir /etc/sudoers.d\n' >> "$TARGET_DIR/etc/sudoers"
 fi
 chmod 0755 "$TARGET_DIR/usr/bin/homepi-login" "$TARGET_DIR/usr/bin/homepiauth.py" "$TARGET_DIR/usr/bin/homepi"
+
+# Existing overlay scripts are text files in git; make appliance entry points executable.
+for source in "$HOMEPI_REPO"/buildroot-external/board/homepi/rootfs-overlay/usr/bin/*; do
+    [ -f "$source" ] || continue
+    chmod 0755 "$TARGET_DIR/usr/bin/$(basename "$source")"
+done
+for source in "$HOMEPI_REPO"/buildroot-external/board/homepi/rootfs-overlay/etc/init.d/S*; do
+    [ -f "$source" ] || continue
+    chmod 0755 "$TARGET_DIR/etc/init.d/$(basename "$source")"
+done

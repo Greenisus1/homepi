@@ -5,7 +5,7 @@ cd -- "$(dirname -- "$0")"
 HOMEPI_REPO=$PWD
 HOMEPI_BR=${HOMEPI_BUILDROOT:-$HOMEPI_REPO/buildroot}
 [ -f "$HOMEPI_BR/Makefile" ] || { echo 'First download Buildroot 2025.08.1 to buildroot/ (see docs/encryption.md).'; exit 1; }
-[ "${1:-}" = --configure-only ] || ./fetch-apps.sh
+[ "${1:-}" = --configure-only ] || bash ./fetch-apps.sh
 make -C "$HOMEPI_BR" BR2_EXTERNAL="$HOMEPI_REPO/buildroot-external" homepi_pi5_defconfig
 python3 - "$HOMEPI_BR/.config" "$HOMEPI_REPO" <<'PY'
 import sys

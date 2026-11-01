@@ -114,6 +114,15 @@ class AccountTests(unittest.TestCase):
 
 class HistoryTests(unittest.TestCase):
     def test_clear_retains_four_complete_entries_in_memory_and_on_disk(self):
+        self.check_history(False)
+
+    def test_multiline_history_on_bash5(self):
+        version = subprocess.check_output(['bash', '-c', 'echo "${BASH_VERSINFO[0]}"'], text=True)
+        if int(version) < 5:
+            self.skipTest('encrypted image uses Bash 5; host Bash is older')
+        self.check_history(True)
+
+    def check_history(self, multiline):
         source = Path('security/history.sh').resolve()
         with tempfile.TemporaryDirectory() as tmp:
             script = '''
@@ -124,7 +133,7 @@ HISTSIZE=100
 history -c
 set +o history
 . "$2"
-for item in first second third fourth fifth sixth; do history -s "$item"; done
+history -r "$1/seed"
 clear() { :; }
 # Reload production function, then override only the external screen-clearing executable.
 . "$2"
@@ -135,6 +144,10 @@ history -c
 history -r "$HISTFILE"
 history
 '''
+            seed = ''.join('#1700000000\n' + name + '\n' for name in ['first', 'second', 'third', 'fourth', 'fifth', 'sixth' + ('\ncontinued' if multiline else '')])
+            (Path(tmp) / 'seed').write_text(seed)
+            if not multiline:
+                script = script.replace('history -r \"$1/seed\"', 'for item in first second third fourth fifth sixth; do history -s \"$item\"; done')
             clear = Path(tmp) / 'clear'
             clear.write_text('#!/bin/sh\nexit 0\n')
             clear.chmod(0o755)
@@ -143,7 +156,9 @@ history
             saved = (Path(tmp) / 'history').read_text()
             self.assertNotIn('first', saved)
             self.assertNotIn('second', saved)
-            self.assertEqual(saved.splitlines(), ['third', 'fourth', 'fifth', 'sixth'])
+            self.assertEqual([line for line in saved.splitlines() if not line.startswith('#')], ['third', 'fourth', 'fifth', 'sixth'] + (['continued'] if multiline else []))
+            if multiline:
+                self.assertEqual(sum(line.startswith('#') for line in saved.splitlines()), 4)
 
 
 if __name__ == '__main__':

@@ -1,6 +1,8 @@
 # Source from interactive Bash. Use the real clear program after trimming history.
 case $- in *i*) ;; *) return ;; esac
 if [ -n "${BASH_VERSION:-}" ]; then
+    # Timestamps delimit complete entries when reloading multiline command history.
+    HISTTIMEFORMAT=${HISTTIMEFORMAT:-'%F %T '}
     clear() {
         local homepi_saved_histsize=${HISTSIZE:-500}
         # Assigning HISTSIZE prunes complete Bash history entries, including multiline ones.

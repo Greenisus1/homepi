@@ -16,8 +16,10 @@ jobs:
       - name: Real LUKS2 password rotation on a disposable file
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y cryptsetup-bin
+          sudo apt-get install -y cryptsetup-bin genimage dosfstools mtools
           sudo env HOMEPI_RUN_LUKS_TESTS=1 python3 -m unittest test_luks_accounts -v
+      - name: Validate encrypted image packaging with dummy firmware
+        run: python3 -m unittest test_encrypted_packaging -v
       - name: Validate pinned Buildroot configuration
         run: |
           git clone --depth 1 --branch 2025.08.1 https://github.com/buildroot/buildroot.git buildroot
