@@ -10,6 +10,19 @@ Your own Linux distro for the Raspberry Pi 5. Not a layer on someone else's OS: 
 
 `hpupdate` checks `system-version.json` in the Greenisus1/homepi repo against the installed version. When the repo is newer it downloads the manifest, verifies every file's sha256, backs up what it replaces to `/var/backups/homepi-update/`, and installs. It runs daily at 04:17 from busybox crond and from the launcher's "Update Home Pi..." entry (`hpupdate --auto`). It NEVER touches auth.json, vault.enc, fan.conf, watchdog.conf, or anything under /root. `make-release.py <version>` regenerates the repo-side metadata (system-version.json + manifest + payloads) from the overlay before each publish. Honest scope: this updates the Home Pi system scripts only - the kernel and rootfs base are NOT field-updatable; those need a reflash.
 
+### Force reinstall (1.1.9 and later)
+
+Run `sudo hpupdate --force` to reinstall the **published update manifest**, even
+when the version matches. If already root, omit `sudo`. `--check --force` only
+reports the proposed reinstall; it never writes files. Checksums, protected files
+and replacement backups still apply. This does not fetch every file from GitHub
+or convert image-only features into an update.
+
+To get this option on 1.1.8, first run `sudo hpupdate` **after the 1.1.9 release
+metadata is merged into main**. That ordinary update installs the new updater;
+then `sudo hpupdate --force` is available. The Update Home Pi menu continues to
+perform normal updates. Encrypted-root provisioning still requires a new image.
+
 ## Honest security note
 
 The login gate plus vault is a friendly lock for a single-user appliance, not a real security boundary. A determined attacker who mounts the SD card gets the wrapped key and vault and can brute-force the password offline - the 200k-round PBKDF2 only slows that down; a Pi has no TPM to stop it. Recovery trusts your GitHub account completely: whoever can log in as the linked account can reset the password. The recovery gist is a GitHub SECRET gist, which is unlisted, not truly private - anyone who ever gets its URL can read the secret (useless without the SD card, but still). The GitHub token from the QR flow is used for the immediate calls and never stored. The device-flow QR requests the `gist` scope in addition to `read:user` - that scope is what lets it save and fetch the recovery gist. Full protection would need rootfs encryption, a much bigger build (out of scope).

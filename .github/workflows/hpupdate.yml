@@ -1,0 +1,12 @@
+name: HomePi updater tests
+on: [push, pull_request]
+jobs:
+  updater:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m unittest test_hpupdate -v
+      - name: Verify installed updater copies
+        run: |
+          cmp hpupdate.py buildroot-external/board/homepi/rootfs-overlay/usr/bin/hpupdate
+          cmp hpupdate.py buildroot-external/board/homepi/rootfs-overlay/usr/bin/hpupdate.py
